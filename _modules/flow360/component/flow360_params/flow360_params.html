@@ -1,0 +1,938 @@
+
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>flow360.component.flow360_params.flow360_params &#8212; flow360 python client  documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/alabaster.css" />
+    <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+    <script src="../../../../_static/jquery.js"></script>
+    <script src="../../../../_static/underscore.js"></script>
+    <script src="../../../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for flow360.component.flow360_params.flow360_params</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Flow360 solver parameters</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">from</span> <span class="nn">abc</span> <span class="kn">import</span> <span class="n">ABC</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
+
+<span class="kn">import</span> <span class="nn">pydantic</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">typing_extensions</span> <span class="kn">import</span> <span class="n">Literal</span>
+
+<span class="kn">from</span> <span class="nn">...exceptions</span> <span class="kn">import</span> <span class="n">ConfigError</span><span class="p">,</span> <span class="n">Flow360NotImplementedError</span><span class="p">,</span> <span class="n">ValidationError</span>
+<span class="kn">from</span> <span class="nn">...log</span> <span class="kn">import</span> <span class="n">log</span>
+<span class="kn">from</span> <span class="nn">...user_config</span> <span class="kn">import</span> <span class="n">UserConfig</span>
+<span class="kn">from</span> <span class="nn">..constants</span> <span class="kn">import</span> <span class="n">constants</span>
+<span class="kn">from</span> <span class="nn">..types</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Axis</span><span class="p">,</span>
+    <span class="n">BoundaryVelocityType</span><span class="p">,</span>
+    <span class="n">Coordinate</span><span class="p">,</span>
+    <span class="n">MomentLengthType</span><span class="p">,</span>
+    <span class="n">NonNegativeFloat</span><span class="p">,</span>
+    <span class="n">Omega</span><span class="p">,</span>
+    <span class="n">PositiveFloat</span><span class="p">,</span>
+    <span class="n">PositiveInt</span><span class="p">,</span>
+    <span class="n">TimeStep</span><span class="p">,</span>
+    <span class="n">Velocity</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="n">_get_value_or_none</span><span class="p">,</span> <span class="n">beta_feature</span>
+<span class="kn">from</span> <span class="nn">.params_base</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DeprecatedAlias</span><span class="p">,</span>
+    <span class="n">Flow360BaseModel</span><span class="p">,</span>
+    <span class="n">Flow360SortableBaseModel</span><span class="p">,</span>
+    <span class="n">_self_named_property_validator</span><span class="p">,</span>
+    <span class="n">export_to_flow360</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">.solvers</span> <span class="kn">import</span> <span class="n">NavierStokesSolver</span><span class="p">,</span> <span class="n">TurbulenceModelSolver</span>
+
+
+<span class="c1"># pylint: disable=invalid-name</span>
+<div class="viewcode-block" id="get_time_non_dim_unit"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.get_time_non_dim_unit">[docs]</a><span class="k">def</span> <span class="nf">get_time_non_dim_unit</span><span class="p">(</span><span class="n">mesh_unit_length</span><span class="p">,</span> <span class="n">C_inf</span><span class="p">,</span> <span class="n">extra_msg</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    returns time non-dimensionalisation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">mesh_unit_length</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">C_inf</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">required</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;mesh_unit&quot;</span><span class="p">,</span> <span class="s2">&quot;mesh_unit_length&quot;</span><span class="p">]</span>
+        <span class="k">raise</span> <span class="n">ConfigError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;You need to provide one of </span><span class="si">{</span><span class="n">required</span><span class="si">}</span><span class="s2"> AND C_inf </span><span class="si">{</span><span class="n">extra_msg</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">mesh_unit_length</span> <span class="o">/</span> <span class="n">C_inf</span></div>
+
+
+<div class="viewcode-block" id="get_length_non_dim_unit"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.get_length_non_dim_unit">[docs]</a><span class="k">def</span> <span class="nf">get_length_non_dim_unit</span><span class="p">(</span><span class="n">mesh_unit_length</span><span class="p">,</span> <span class="n">extra_msg</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    returns length non-dimensionalisation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">mesh_unit_length</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">required</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;mesh_unit&quot;</span><span class="p">,</span> <span class="s2">&quot;mesh_unit_length&quot;</span><span class="p">]</span>
+        <span class="k">raise</span> <span class="n">ConfigError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;You need to provide one of </span><span class="si">{</span><span class="n">required</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">extra_msg</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">mesh_unit_length</span></div>
+
+
+<div class="viewcode-block" id="MeshBoundary"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.MeshBoundary">[docs]</a><span class="k">class</span> <span class="nc">MeshBoundary</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Mesh boundary&quot;&quot;&quot;</span>
+
+    <span class="n">no_slip_walls</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;noSlipWalls&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Boundary"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.Boundary">[docs]</a><span class="k">class</span> <span class="nc">Boundary</span><span class="p">(</span><span class="n">ABC</span><span class="p">,</span> <span class="n">Flow360BaseModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Basic Boundary class&quot;&quot;&quot;</span>
+
+    <span class="nb">type</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span>
+        <span class="kc">None</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s2">&quot;Name&quot;</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Optional unique name for boundary.&quot;</span>
+    <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="NoSlipWall"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.NoSlipWall">[docs]</a><span class="k">class</span> <span class="nc">NoSlipWall</span><span class="p">(</span><span class="n">Boundary</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;No slip wall boundary&quot;&quot;&quot;</span>
+
+    <span class="nb">type</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="s2">&quot;NoSlipWall&quot;</span><span class="p">,</span> <span class="n">const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">velocity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">BoundaryVelocityType</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;Velocity&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SlipWall"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.SlipWall">[docs]</a><span class="k">class</span> <span class="nc">SlipWall</span><span class="p">(</span><span class="n">Boundary</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Slip wall boundary&quot;&quot;&quot;</span>
+
+    <span class="nb">type</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="s2">&quot;SlipWall&quot;</span><span class="p">,</span> <span class="n">const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="FreestreamBoundary"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.FreestreamBoundary">[docs]</a><span class="k">class</span> <span class="nc">FreestreamBoundary</span><span class="p">(</span><span class="n">Boundary</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Freestream boundary&quot;&quot;&quot;</span>
+
+    <span class="nb">type</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="s2">&quot;Freestream&quot;</span><span class="p">,</span> <span class="n">const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">velocity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">BoundaryVelocityType</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;Velocity&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="IsothermalWall"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.IsothermalWall">[docs]</a><span class="k">class</span> <span class="nc">IsothermalWall</span><span class="p">(</span><span class="n">Boundary</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;IsothermalWall boundary&quot;&quot;&quot;</span>
+
+    <span class="nb">type</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="s2">&quot;IsothermalWall&quot;</span><span class="p">,</span> <span class="n">const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">Temperature</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">PositiveFloat</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span>
+    <span class="n">velocity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">BoundaryVelocityType</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;Velocity&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SubsonicOutflowPressure"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.SubsonicOutflowPressure">[docs]</a><span class="k">class</span> <span class="nc">SubsonicOutflowPressure</span><span class="p">(</span><span class="n">Boundary</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;SubsonicOutflowPressure boundary&quot;&quot;&quot;</span>
+
+    <span class="nb">type</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="s2">&quot;SubsonicOutflowPressure&quot;</span><span class="p">,</span> <span class="n">const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">staticPressureRatio</span><span class="p">:</span> <span class="n">PositiveFloat</span></div>
+
+
+<div class="viewcode-block" id="SubsonicOutflowMach"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.SubsonicOutflowMach">[docs]</a><span class="k">class</span> <span class="nc">SubsonicOutflowMach</span><span class="p">(</span><span class="n">Boundary</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;SubsonicOutflowMach boundary&quot;&quot;&quot;</span>
+
+    <span class="nb">type</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="s2">&quot;SubsonicOutflowMach&quot;</span><span class="p">,</span> <span class="n">const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">Mach</span><span class="p">:</span> <span class="n">PositiveFloat</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;MachNumber&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SubsonicInflow"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.SubsonicInflow">[docs]</a><span class="k">class</span> <span class="nc">SubsonicInflow</span><span class="p">(</span><span class="n">Boundary</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;SubsonicInflow boundary&quot;&quot;&quot;</span>
+
+    <span class="nb">type</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="s2">&quot;SubsonicInflow&quot;</span><span class="p">,</span> <span class="n">const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">totalPressureRatio</span><span class="p">:</span> <span class="n">PositiveFloat</span>
+    <span class="n">totalTemperatureRatio</span><span class="p">:</span> <span class="n">PositiveFloat</span>
+    <span class="n">rampSteps</span><span class="p">:</span> <span class="n">PositiveInt</span></div>
+
+
+<div class="viewcode-block" id="SlidingInterfaceBoundary"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.SlidingInterfaceBoundary">[docs]</a><span class="k">class</span> <span class="nc">SlidingInterfaceBoundary</span><span class="p">(</span><span class="n">Boundary</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;SlidingInterface boundary&quot;&quot;&quot;</span>
+
+    <span class="nb">type</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="s2">&quot;SlidingInterface&quot;</span><span class="p">,</span> <span class="n">const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="WallFunction"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.WallFunction">[docs]</a><span class="k">class</span> <span class="nc">WallFunction</span><span class="p">(</span><span class="n">Boundary</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;WallFunction boundary&quot;&quot;&quot;</span>
+
+    <span class="nb">type</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="s2">&quot;WallFunction&quot;</span><span class="p">,</span> <span class="n">const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="nd">@beta_feature</span><span class="p">(</span><span class="nb">type</span><span class="o">.</span><span class="n">default</span><span class="p">)</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MassInflow"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.MassInflow">[docs]</a><span class="k">class</span> <span class="nc">MassInflow</span><span class="p">(</span><span class="n">Boundary</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;MassInflow boundary&quot;&quot;&quot;</span>
+
+    <span class="nb">type</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="s2">&quot;MassInflow&quot;</span><span class="p">,</span> <span class="n">const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">massFlowRate</span><span class="p">:</span> <span class="n">PositiveFloat</span></div>
+
+
+<div class="viewcode-block" id="MassOutflow"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.MassOutflow">[docs]</a><span class="k">class</span> <span class="nc">MassOutflow</span><span class="p">(</span><span class="n">Boundary</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;MassOutflow boundary&quot;&quot;&quot;</span>
+
+    <span class="nb">type</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="s2">&quot;MassOutflow&quot;</span><span class="p">,</span> <span class="n">const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">massFlowRate</span><span class="p">:</span> <span class="n">PositiveFloat</span></div>
+
+
+<span class="n">BoundaryType</span> <span class="o">=</span> <span class="n">Union</span><span class="p">[</span>
+    <span class="n">NoSlipWall</span><span class="p">,</span>
+    <span class="n">SlipWall</span><span class="p">,</span>
+    <span class="n">FreestreamBoundary</span><span class="p">,</span>
+    <span class="n">IsothermalWall</span><span class="p">,</span>
+    <span class="n">SubsonicOutflowPressure</span><span class="p">,</span>
+    <span class="n">SubsonicOutflowMach</span><span class="p">,</span>
+    <span class="n">SubsonicInflow</span><span class="p">,</span>
+    <span class="n">SlidingInterfaceBoundary</span><span class="p">,</span>
+    <span class="n">WallFunction</span><span class="p">,</span>
+    <span class="n">MassInflow</span><span class="p">,</span>
+    <span class="n">MassOutflow</span><span class="p">,</span>
+<span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">ForcePerArea</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;:class:`ForcePerArea` class for setting up force per area for Actuator Disk</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    radius : Coordinate</span>
+<span class="sd">        Radius of the sampled locations in grid unit</span>
+
+<span class="sd">    thrust : Axis</span>
+<span class="sd">        Force per area in the axial direction, positive means the axial force follows the same direction as axisThrust.</span>
+<span class="sd">        It is non-dimensional: trustPerArea[SI=N/m2]/rho_inf/C_inf^2</span>
+
+<span class="sd">    circumferential : PositiveFloat</span>
+<span class="sd">        Force per area in the circumferential direction, positive means the circumferential force follows the same</span>
+<span class="sd">        direction as axisThrust with the right hand rule. It is non-dimensional:</span>
+<span class="sd">                                                                circumferentialForcePerArea[SI=N/m2]/rho_inf/C_inf^2</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`ForcePerArea`</span>
+<span class="sd">        An instance of the component class ForcePerArea.</span>
+
+<span class="sd">    Example</span>
+<span class="sd">    -------</span>
+<span class="sd">    &gt;&gt;&gt; fpa = ForcePerArea(radius=[0, 1], thrust=[1, 1], circumferential=[1, 1]) # doctest: +SKIP</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">radius</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
+    <span class="n">thrust</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
+    <span class="n">circumferential</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
+
+    <span class="c1"># pylint: disable=no-self-argument</span>
+    <span class="nd">@pd</span><span class="o">.</span><span class="n">root_validator</span><span class="p">(</span><span class="n">pre</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">check_len</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        root validator</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">radius</span><span class="p">,</span> <span class="n">thrust</span><span class="p">,</span> <span class="n">circumferential</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">values</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;radius&quot;</span><span class="p">),</span>
+            <span class="n">values</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;thrust&quot;</span><span class="p">),</span>
+            <span class="n">values</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;circumferential&quot;</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">radius</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">thrust</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">radius</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">circumferential</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;length of radius, thrust, circumferential must be the same, </span><span class="se">\</span>
+<span class="s2">                but got: len(radius)=</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">radius</span><span class="p">)</span><span class="si">}</span><span class="s2">, </span><span class="se">\</span>
+<span class="s2">                         len(thrust)=</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">thrust</span><span class="p">)</span><span class="si">}</span><span class="s2">, </span><span class="se">\</span>
+<span class="s2">                         len(circumferential)=</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">circumferential</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">values</span>
+
+
+<span class="k">class</span> <span class="nc">ActuatorDisk</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;:class:`ActuatorDisk` class for setting up an Actuator Disk</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    center : Coordinate</span>
+<span class="sd">        Coordinate of center of ActuatorDisk, eg (0, 0, 0)</span>
+
+<span class="sd">    axis_thrust : Axis</span>
+<span class="sd">        direction of thrust, it is a unit vector</span>
+
+<span class="sd">    thickness : PositiveFloat</span>
+<span class="sd">        Thickness of Actuator Disk in mesh units</span>
+
+<span class="sd">    force_per_area : :class:`ForcePerArea`</span>
+<span class="sd">        Force per Area data for actuator disk. See ActuatorDisk.ForcePerArea for details</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`ActuatorDisk`</span>
+<span class="sd">        An instance of the component class ActuatorDisk.</span>
+
+<span class="sd">    Example</span>
+<span class="sd">    -------</span>
+<span class="sd">    &gt;&gt;&gt; ad = ActuatorDisk(center=(0, 0, 0), axis_thrust=(0, 0, 1), thickness=20,</span>
+<span class="sd">    ... force_per_area=ForcePerArea(...))</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">center</span><span class="p">:</span> <span class="n">Coordinate</span>
+    <span class="n">axis_thrust</span><span class="p">:</span> <span class="n">Axis</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;axisThrust&quot;</span><span class="p">)</span>
+    <span class="n">thickness</span><span class="p">:</span> <span class="n">PositiveFloat</span>
+    <span class="n">force_per_area</span><span class="p">:</span> <span class="n">ForcePerArea</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;forcePerArea&quot;</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">SlidingInterface</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;:class:`SlidingInterface` class for setting up sliding interface</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    center : Coordinate</span>
+<span class="sd">        Coordinate representing the origin of rotation, eg. (0, 0, 0)</span>
+
+<span class="sd">    axis : Axis</span>
+<span class="sd">        Axis of rotation, eg. (0, 0, 1)</span>
+
+<span class="sd">    stationary_patches : List[str]</span>
+<span class="sd">        A list of static patch names of an interface</span>
+
+<span class="sd">    rotating_patches : List[str]</span>
+<span class="sd">        A list of dynamic patch names of an interface</span>
+
+<span class="sd">    volume_name : Union[str, int, List[str], List[int]]</span>
+<span class="sd">        A list of dynamic volume zones related to the above {omega, centerOfRotation, axisOfRotation}</span>
+
+<span class="sd">    name: str, optional</span>
+<span class="sd">        Name of slidingInterface</span>
+
+<span class="sd">    parent_volume_name : str, optional</span>
+<span class="sd">        Name of the volume zone that the rotating reference frame is contained in, used to compute the acceleration in</span>
+<span class="sd">        the nested rotating reference frame</span>
+
+<span class="sd">    theta_radians : str, optional</span>
+<span class="sd">        Expression for rotation angle (in radians) as a function of time</span>
+
+<span class="sd">    theta_degrees : str, optional</span>
+<span class="sd">        Expression for rotation angle (in degrees) as a function of time</span>
+
+<span class="sd">    omega : Union[float, Omega], optional</span>
+<span class="sd">        Rotating speed without or with unit, eg. 1.0, (1.0, &#39;rad/s&#39;), (1.0, &#39;deg/s&#39;), (1.0, &#39;non-dim&#39;). If no unit</span>
+<span class="sd">        provided, non-dimensional is assumed.</span>
+
+<span class="sd">    rpm : float, optional</span>
+<span class="sd">        Rotating speed in revolutions per minute (RPM)</span>
+
+<span class="sd">    omega_radians</span>
+<span class="sd">        Nondimensional rotating speed, radians/nondim-unit-time</span>
+
+<span class="sd">    omega_degrees</span>
+<span class="sd">        Nondimensional rotating speed, degrees/nondim-unit-time</span>
+
+<span class="sd">    is_dynamic</span>
+<span class="sd">        Whether rotation of this interface is dictated by userDefinedDynamics</span>
+
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`SlidingInterface`</span>
+<span class="sd">        An instance of the component class SlidingInterface.</span>
+
+<span class="sd">    Example</span>
+<span class="sd">    -------</span>
+<span class="sd">    &gt;&gt;&gt; si = SlidingInterface(</span>
+<span class="sd">            center=(0, 0, 0),</span>
+<span class="sd">            axis=(0, 0, 1),</span>
+<span class="sd">            stationary_patches=[&#39;patch1&#39;],</span>
+<span class="sd">            rotating_patches=[&#39;patch2&#39;],</span>
+<span class="sd">            volume_name=&#39;volume1&#39;,</span>
+<span class="sd">            omega=(1, &#39;rad/s&#39;)</span>
+<span class="sd">        )</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">center</span><span class="p">:</span> <span class="n">Coordinate</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;centerOfRotation&quot;</span><span class="p">)</span>
+    <span class="n">axis</span><span class="p">:</span> <span class="n">Axis</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;axisOfRotation&quot;</span><span class="p">)</span>
+    <span class="n">stationary_patches</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;stationaryPatches&quot;</span><span class="p">)</span>
+    <span class="n">rotating_patches</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;rotatingPatches&quot;</span><span class="p">)</span>
+    <span class="n">volume_name</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;volumeName&quot;</span><span class="p">)</span>
+    <span class="n">parent_volume_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;parentVolumeName&quot;</span><span class="p">)</span>
+    <span class="n">name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;interfaceName&quot;</span><span class="p">)</span>
+    <span class="n">theta_radians</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;thetaRadians&quot;</span><span class="p">)</span>
+    <span class="n">theta_degrees</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;thetaDegrees&quot;</span><span class="p">)</span>
+    <span class="n">omega</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="n">Omega</span><span class="p">]]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+    <span class="n">omega_radians</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;omegaRadians&quot;</span><span class="p">)</span>
+    <span class="n">omega_degrees</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;omegaDegrees&quot;</span><span class="p">)</span>
+    <span class="n">rpm</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span>
+    <span class="n">is_dynamic</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;isDynamic&quot;</span><span class="p">)</span>
+
+    <span class="c1"># pylint: disable=no-self-argument</span>
+    <span class="nd">@pd</span><span class="o">.</span><span class="n">validator</span><span class="p">(</span><span class="s2">&quot;omega&quot;</span><span class="p">,</span> <span class="n">pre</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">always</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">validate_omega</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Validator for omega&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">Omega</span><span class="p">(</span><span class="n">v</span><span class="o">=</span><span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">unit</span><span class="o">=</span><span class="n">v</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">v</span>
+
+    <span class="c1"># pylint: disable=invalid-name</span>
+    <span class="nd">@export_to_flow360</span>
+    <span class="k">def</span> <span class="nf">to_flow360_json</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">return_json</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">mesh_unit_length</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">C_inf</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns flow360 formatted json</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">perform_non_dimensionalisation</span><span class="p">(</span><span class="n">mesh_unit_length</span><span class="p">,</span> <span class="n">C_inf</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">return_json</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="c1"># pylint: disable=invalid-name</span>
+    <span class="k">def</span> <span class="nf">perform_non_dimensionalisation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mesh_unit_length</span><span class="p">,</span> <span class="n">C_inf</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        performs non-dimensionalisation</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">omega</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">omega_radians</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega</span><span class="o">.</span><span class="n">unit</span> <span class="o">==</span> <span class="s2">&quot;rad/s&quot;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">omega_radians</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega</span><span class="o">.</span><span class="n">v</span> <span class="o">*</span> <span class="n">get_time_non_dim_unit</span><span class="p">(</span>
+                    <span class="n">mesh_unit_length</span><span class="p">,</span> <span class="n">C_inf</span><span class="p">,</span> <span class="n">extra_msg</span><span class="o">=</span><span class="s2">&quot;when using rad/s unit for omega.&quot;</span>
+                <span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega</span><span class="o">.</span><span class="n">unit</span> <span class="o">==</span> <span class="s2">&quot;deg/s&quot;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">omega_degrees</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega</span><span class="o">.</span><span class="n">v</span> <span class="o">*</span> <span class="n">get_time_non_dim_unit</span><span class="p">(</span>
+                    <span class="n">mesh_unit_length</span><span class="p">,</span> <span class="n">C_inf</span><span class="p">,</span> <span class="n">extra_msg</span><span class="o">=</span><span class="s2">&quot;when using deg/s unit for omega.&quot;</span>
+                <span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega</span><span class="o">.</span><span class="n">unit</span> <span class="o">==</span> <span class="s2">&quot;non-dim&quot;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">omega_degrees</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega</span><span class="o">.</span><span class="n">v</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rpm</span><span class="p">:</span>
+            <span class="n">omega</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rpm</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">/</span> <span class="mi">60</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">omega_radians</span> <span class="o">=</span> <span class="n">omega</span> <span class="o">*</span> <span class="n">get_time_non_dim_unit</span><span class="p">(</span>
+                <span class="n">mesh_unit_length</span><span class="p">,</span> <span class="n">C_inf</span><span class="p">,</span> <span class="s2">&quot;when using rpm.&quot;</span>
+            <span class="p">)</span>
+
+    <span class="c1"># pylint: disable=missing-class-docstring,too-few-public-methods</span>
+    <span class="k">class</span> <span class="nc">Config</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="o">.</span><span class="n">Config</span><span class="p">):</span>
+        <span class="n">exclude_on_flow360_export</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;omega&quot;</span><span class="p">,</span> <span class="s2">&quot;rpm&quot;</span><span class="p">]</span>
+        <span class="n">require_one_of</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s2">&quot;omega&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;rpm&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;omega_radians&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;omega_degrees&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;theta_radians&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;theta_degrees&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;is_dynamic&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+
+
+<div class="viewcode-block" id="MeshSlidingInterface"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.MeshSlidingInterface">[docs]</a><span class="k">class</span> <span class="nc">MeshSlidingInterface</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Sliding interface component</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">stationary_patches</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;stationaryPatches&quot;</span><span class="p">)</span>
+    <span class="n">rotating_patches</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;rotatingPatches&quot;</span><span class="p">)</span>
+    <span class="n">axis</span><span class="p">:</span> <span class="n">Axis</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;axisOfRotation&quot;</span><span class="p">)</span>
+    <span class="n">center</span><span class="p">:</span> <span class="n">Coordinate</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;centerOfRotation&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="MeshSlidingInterface.from_case_sliding_interface"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.MeshSlidingInterface.from_case_sliding_interface">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">from_case_sliding_interface</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">si</span><span class="p">:</span> <span class="n">SlidingInterface</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        create mesh sliding interface (for Flow360Mesh.json) from case params SlidingInterface</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">stationary_patches</span><span class="o">=</span><span class="n">si</span><span class="o">.</span><span class="n">stationary_patches</span><span class="p">,</span>
+            <span class="n">rotating_patches</span><span class="o">=</span><span class="n">si</span><span class="o">.</span><span class="n">rotating_patches</span><span class="p">,</span>
+            <span class="n">axis</span><span class="o">=</span><span class="n">si</span><span class="o">.</span><span class="n">axis</span><span class="p">,</span>
+            <span class="n">center</span><span class="o">=</span><span class="n">si</span><span class="o">.</span><span class="n">center</span><span class="p">,</span>
+        <span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="TimeSteppingCFL"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.TimeSteppingCFL">[docs]</a><span class="k">class</span> <span class="nc">TimeSteppingCFL</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    CFL for time stepping component</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nb">type</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;ramp&quot;</span><span class="p">,</span> <span class="s2">&quot;adaptive&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+    <span class="n">initial</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PositiveFloat</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+    <span class="n">final</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PositiveFloat</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+    <span class="n">ramp_steps</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;rampSteps&quot;</span><span class="p">)</span>
+    <span class="nb">min</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PositiveFloat</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+    <span class="nb">max</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PositiveFloat</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+    <span class="n">max_relative_change</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PositiveFloat</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;maxRelativeChange&quot;</span><span class="p">)</span>
+    <span class="n">convergence_limiting_factor</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PositiveFloat</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span>
+        <span class="n">alias</span><span class="o">=</span><span class="s2">&quot;convergenceLimitingFactor&quot;</span>
+    <span class="p">)</span>
+    <span class="n">randomizer</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+
+<div class="viewcode-block" id="TimeSteppingCFL.adaptive"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.TimeSteppingCFL.adaptive">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">adaptive</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns default adaptive CFL settings</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;adaptive&quot;</span><span class="p">,</span>
+            <span class="nb">min</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+            <span class="nb">max</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span>
+            <span class="n">max_relative_change</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">convergence_limiting_factor</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+<div class="viewcode-block" id="TimeSteppingCFL.default_steady"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.TimeSteppingCFL.default_steady">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">default_steady</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns default steady CFL settings</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">initial</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">final</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">ramp_steps</span><span class="o">=</span><span class="mi">40</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TimeSteppingCFL.default_unsteady"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.TimeSteppingCFL.default_unsteady">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">default_unsteady</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns default unsteady CFL settings</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">initial</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">final</span><span class="o">=</span><span class="mf">1e6</span><span class="p">,</span> <span class="n">ramp_steps</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span></div></div>
+
+
+<span class="c1"># pylint: disable=E0213</span>
+<div class="viewcode-block" id="TimeStepping"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.TimeStepping">[docs]</a><span class="k">class</span> <span class="nc">TimeStepping</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Time stepping component</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">physical_steps</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PositiveInt</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;physicalSteps&quot;</span><span class="p">)</span>
+    <span class="n">max_pseudo_steps</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PositiveInt</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;maxPseudoSteps&quot;</span><span class="p">)</span>
+    <span class="n">time_step_size</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span>
+        <span class="n">Union</span><span class="p">[</span><span class="n">pd</span><span class="o">.</span><span class="n">confloat</span><span class="p">(</span><span class="n">gt</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">allow_inf_nan</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span> <span class="n">TimeStep</span><span class="p">,</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;inf&quot;</span><span class="p">]]</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;timeStepSize&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;inf&quot;</span><span class="p">)</span>
+    <span class="n">CFL</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TimeSteppingCFL</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+
+<div class="viewcode-block" id="TimeStepping.default_steady"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.TimeStepping.default_steady">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">default_steady</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns default steady settings</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">physical_steps</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">time_step_size</span><span class="o">=</span><span class="s2">&quot;inf&quot;</span><span class="p">,</span>
+            <span class="n">max_pseudo_steps</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span>
+            <span class="n">CFL</span><span class="o">=</span><span class="n">TimeSteppingCFL</span><span class="o">.</span><span class="n">default_steady</span><span class="p">(),</span>
+        <span class="p">)</span></div>
+
+<div class="viewcode-block" id="TimeStepping.default_unsteady"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.TimeStepping.default_unsteady">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">default_unsteady</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">physical_steps</span><span class="p">,</span> <span class="n">time_step_size</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns default unsteady settings</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">physical_steps</span><span class="o">=</span><span class="n">physical_steps</span><span class="p">,</span>
+            <span class="n">time_step_size</span><span class="o">=</span><span class="n">time_step_size</span><span class="p">,</span>
+            <span class="n">max_pseudo_steps</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span>
+            <span class="n">CFL</span><span class="o">=</span><span class="n">TimeSteppingCFL</span><span class="o">.</span><span class="n">default_unsteady</span><span class="p">(),</span>
+        <span class="p">)</span></div>
+
+    <span class="c1"># pylint: disable=invalid-name</span>
+<div class="viewcode-block" id="TimeStepping.to_flow360_json"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.TimeStepping.to_flow360_json">[docs]</a>    <span class="nd">@export_to_flow360</span>
+    <span class="k">def</span> <span class="nf">to_flow360_json</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">return_json</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">mesh_unit_length</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">C_inf</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns flow360 formatted json</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">perform_non_dimensionalisation</span><span class="p">(</span><span class="n">mesh_unit_length</span><span class="p">,</span> <span class="n">C_inf</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">return_json</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+    <span class="c1"># pylint: disable=invalid-name</span>
+<div class="viewcode-block" id="TimeStepping.perform_non_dimensionalisation"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.TimeStepping.perform_non_dimensionalisation">[docs]</a>    <span class="k">def</span> <span class="nf">perform_non_dimensionalisation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mesh_unit_length</span><span class="p">,</span> <span class="n">C_inf</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        performs non-dimensionalisation</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_step_size</span><span class="p">,</span> <span class="n">TimeStep</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_step_size</span><span class="o">.</span><span class="n">is_second</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">time_step_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_step_size</span><span class="o">.</span><span class="n">v</span> <span class="o">/</span> <span class="n">get_time_non_dim_unit</span><span class="p">(</span>
+                    <span class="n">mesh_unit_length</span><span class="p">,</span> <span class="n">C_inf</span><span class="p">,</span> <span class="n">extra_msg</span><span class="o">=</span><span class="s2">&quot;when using time_step_size in seconds.&quot;</span>
+                <span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_step_size</span><span class="o">.</span><span class="n">unit</span> <span class="o">==</span> <span class="s2">&quot;deg&quot;</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">Flow360NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Time step size in &#39;deg&#39; is not yet implemented.&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TimeStepping.check_time_step_size"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.TimeStepping.check_time_step_size">[docs]</a>    <span class="nd">@pd</span><span class="o">.</span><span class="n">validator</span><span class="p">(</span><span class="s2">&quot;time_step_size&quot;</span><span class="p">,</span> <span class="n">pre</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">always</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">check_time_step_size</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;time step validator&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">TimeStep</span><span class="p">(</span><span class="n">v</span><span class="o">=</span><span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">unit</span><span class="o">=</span><span class="n">value</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">value</span></div>
+
+    <span class="c1"># pylint: disable=missing-class-docstring,too-few-public-methods</span>
+    <span class="k">class</span> <span class="nc">Config</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="o">.</span><span class="n">Config</span><span class="p">):</span>
+        <span class="n">deprecated_aliases</span> <span class="o">=</span> <span class="p">[</span><span class="n">DeprecatedAlias</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;physical_steps&quot;</span><span class="p">,</span> <span class="n">deprecated</span><span class="o">=</span><span class="s2">&quot;maxPhysicalSteps&quot;</span><span class="p">)]</span></div>
+
+
+<span class="k">class</span> <span class="nc">_GenericBoundaryWrapper</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="p">):</span>
+    <span class="n">v</span><span class="p">:</span> <span class="n">BoundaryType</span>
+
+
+<span class="k">class</span> <span class="nc">Boundaries</span><span class="p">(</span><span class="n">Flow360SortableBaseModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;:class:`Boundaries` class for setting up Boundaries</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    &lt;boundary_name&gt; : BoundaryType</span>
+<span class="sd">        Supported boundary types: Union[NoSlipWall, SlipWall, FreestreamBoundary, IsothermalWall,</span>
+<span class="sd">                                        SubsonicOutflowPressure, SubsonicOutflowMach, SubsonicInflow,</span>
+<span class="sd">                                        SlidingInterfaceBoundary, WallFunction, MassInflow, MassOutflow]</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`Boundaries`</span>
+<span class="sd">        An instance of the component class Boundaries.</span>
+
+<span class="sd">    Example</span>
+<span class="sd">    -------</span>
+<span class="sd">    &gt;&gt;&gt; boundaries = Boundaries(</span>
+<span class="sd">            wing=NoSlipWall(),</span>
+<span class="sd">            symmetry=SlipWall(),</span>
+<span class="sd">            freestream=FreestreamBoundary()</span>
+<span class="sd">        )</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@pd</span><span class="o">.</span><span class="n">root_validator</span><span class="p">(</span><span class="n">pre</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">validate_boundary</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Validator for boundary list section</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValidationError</span>
+<span class="sd">            When boundary is incorrect</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_self_named_property_validator</span><span class="p">(</span>
+            <span class="n">values</span><span class="p">,</span> <span class="n">_GenericBoundaryWrapper</span><span class="p">,</span> <span class="n">msg</span><span class="o">=</span><span class="s2">&quot;is not any of supported boundary types.&quot;</span>
+        <span class="p">)</span>
+
+
+<div class="viewcode-block" id="Geometry"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.Geometry">[docs]</a><span class="k">class</span> <span class="nc">Geometry</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Geometry component</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">ref_area</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;refArea&quot;</span><span class="p">)</span>
+    <span class="n">moment_center</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Coordinate</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;momentCenter&quot;</span><span class="p">)</span>
+    <span class="n">moment_length</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">MomentLengthType</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;momentLength&quot;</span><span class="p">)</span>
+
+    <span class="n">mesh_unit_length</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PositiveFloat</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;meshUnitLength&quot;</span><span class="p">)</span>
+    <span class="n">mesh_unit</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;m&quot;</span><span class="p">,</span> <span class="s2">&quot;cm&quot;</span><span class="p">,</span> <span class="s2">&quot;mm&quot;</span><span class="p">,</span> <span class="s2">&quot;inch&quot;</span><span class="p">,</span> <span class="s2">&quot;feet&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;meshUnit&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Geometry.get_mesh_unit_length"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.Geometry.get_mesh_unit_length">[docs]</a>    <span class="k">def</span> <span class="nf">get_mesh_unit_length</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns mesh unit length in meters. Needs one of [mesh_unit_length, mesh_unit] to be specified</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        float</span>
+<span class="sd">            mesh unit length in meters</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mesh_unit_length</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mesh_unit_length</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mesh_unit</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">mesh_unit_length_in_meter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mesh_unit</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="Geometry.mesh_unit_length_in_meter"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.Geometry.mesh_unit_length_in_meter">[docs]</a>    <span class="k">def</span> <span class="nf">mesh_unit_length_in_meter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">unit</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;m&quot;</span><span class="p">,</span> <span class="s2">&quot;cm&quot;</span><span class="p">,</span> <span class="s2">&quot;mm&quot;</span><span class="p">,</span> <span class="s2">&quot;inch&quot;</span><span class="p">,</span> <span class="s2">&quot;feet&quot;</span><span class="p">]):</span>
+        <span class="sd">&quot;&quot;&quot;unit length in meters</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        unit : Literal[&amp;quot;m&amp;quot;, &amp;quot;cm&amp;quot;, &amp;quot;mm&amp;quot;, &amp;quot;inch&amp;quot;, &amp;quot;feet&amp;quot;]</span>
+<span class="sd">            Unit name</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        float</span>
+<span class="sd">            unit length in meters</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">in_meter</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;m&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;cm&quot;</span><span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span> <span class="s2">&quot;mm&quot;</span><span class="p">:</span> <span class="mf">0.001</span><span class="p">,</span> <span class="s2">&quot;inch&quot;</span><span class="p">:</span> <span class="mf">0.0254</span><span class="p">,</span> <span class="s2">&quot;feet&quot;</span><span class="p">:</span> <span class="mf">0.3048</span><span class="p">}</span>
+        <span class="k">return</span> <span class="n">in_meter</span><span class="p">[</span><span class="n">unit</span><span class="p">]</span></div>
+
+    <span class="c1"># pylint: disable=missing-class-docstring,too-few-public-methods</span>
+    <span class="k">class</span> <span class="nc">Config</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="o">.</span><span class="n">Config</span><span class="p">):</span>
+        <span class="n">exclude_on_flow360_export</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;mesh_unit&quot;</span><span class="p">,</span> <span class="s2">&quot;mesh_unit_length&quot;</span><span class="p">]</span>
+        <span class="n">allow_but_remove</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;meshName&quot;</span><span class="p">,</span> <span class="s2">&quot;endianness&quot;</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="Freestream"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.Freestream">[docs]</a><span class="k">class</span> <span class="nc">Freestream</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Freestream component</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">Reynolds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PositiveFloat</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+    <span class="n">Mach</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">NonNegativeFloat</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+    <span class="n">MachRef</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PositiveFloat</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+    <span class="n">mu_ref</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PositiveFloat</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;muRef&quot;</span><span class="p">)</span>
+    <span class="n">temperature</span><span class="p">:</span> <span class="n">PositiveFloat</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;Temperature&quot;</span><span class="p">)</span>
+    <span class="n">density</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PositiveFloat</span><span class="p">]</span>
+    <span class="n">speed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">Velocity</span><span class="p">,</span> <span class="n">PositiveFloat</span><span class="p">]]</span>
+    <span class="n">alpha</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;alphaAngle&quot;</span><span class="p">)</span>
+    <span class="n">beta</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;betaAngle&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">turbulent_viscosity_ratio</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">NonNegativeFloat</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span>
+        <span class="n">alias</span><span class="o">=</span><span class="s2">&quot;turbulentViscosityRatio&quot;</span>
+    <span class="p">)</span>
+
+<div class="viewcode-block" id="Freestream.validate_speed"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.Freestream.validate_speed">[docs]</a>    <span class="nd">@pd</span><span class="o">.</span><span class="n">validator</span><span class="p">(</span><span class="s2">&quot;speed&quot;</span><span class="p">,</span> <span class="n">pre</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">always</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">validate_speed</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;speed validator&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">Velocity</span><span class="p">(</span><span class="n">v</span><span class="o">=</span><span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">unit</span><span class="o">=</span><span class="n">v</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">v</span></div>
+
+<div class="viewcode-block" id="Freestream.get_C_inf"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.Freestream.get_C_inf">[docs]</a>    <span class="k">def</span> <span class="nf">get_C_inf</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;returns speed of sound based on model&#39;s temperature&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_speed_of_sound_from_temperature</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature</span><span class="p">)</span></div>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_speed_of_sound_from_temperature</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">T</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;calculates speed of sound&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">1.4</span> <span class="o">*</span> <span class="n">constants</span><span class="o">.</span><span class="n">R</span> <span class="o">*</span> <span class="n">T</span><span class="p">)</span>
+
+    <span class="c1"># pylint: disable=invalid-name</span>
+    <span class="k">def</span> <span class="nf">_mach_from_speed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">speed</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">speed</span><span class="p">:</span>
+            <span class="n">C_inf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_C_inf</span><span class="p">()</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">speed</span><span class="p">,</span> <span class="n">Velocity</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">Mach</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">speed</span><span class="o">.</span><span class="n">v</span> <span class="o">/</span> <span class="n">C_inf</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">Mach</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">speed</span> <span class="o">/</span> <span class="n">C_inf</span>
+
+<div class="viewcode-block" id="Freestream.from_speed"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.Freestream.from_speed">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">from_speed</span><span class="p">(</span>
+        <span class="bp">cls</span><span class="p">,</span>
+        <span class="n">speed</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">Velocity</span><span class="p">,</span> <span class="n">PositiveFloat</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">temperature</span><span class="p">:</span> <span class="n">PositiveFloat</span> <span class="o">=</span> <span class="mf">288.15</span><span class="p">,</span>
+        <span class="n">density</span><span class="p">:</span> <span class="n">PositiveFloat</span> <span class="o">=</span> <span class="mf">1.225</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Freestream</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;class: `Freestream`</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        speed : Union[Velocity, PositiveFloat]</span>
+<span class="sd">            Value for freestream speed, e.g., (100.0, &#39;m/s&#39;). If no unit provided, meters per second is assumed.</span>
+<span class="sd">        temperature : PositiveFloat, optional</span>
+<span class="sd">            temeperature, by default 288.15</span>
+<span class="sd">        density : PositiveFloat, optional</span>
+<span class="sd">            density, by default 1.225</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        :class: `Freestream`</span>
+<span class="sd">            returns Freestream object</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; fs = Freestream.from_speed(speed=(10, &quot;m/s&quot;))</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">speed</span>
+        <span class="n">fs</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">(</span><span class="n">temperature</span><span class="o">=</span><span class="n">temperature</span><span class="p">,</span> <span class="n">speed</span><span class="o">=</span><span class="n">speed</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="n">density</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">fs</span><span class="o">.</span><span class="n">_mach_from_speed</span><span class="p">(</span><span class="n">fs</span><span class="o">.</span><span class="n">speed</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">fs</span></div>
+
+<div class="viewcode-block" id="Freestream.to_flow360_json"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.Freestream.to_flow360_json">[docs]</a>    <span class="nd">@export_to_flow360</span>
+    <span class="k">def</span> <span class="nf">to_flow360_json</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">return_json</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">mesh_unit_length</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns flow360 formatted json</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">Reynolds</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">mu_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">density</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ConfigError</span><span class="p">(</span><span class="s2">&quot;density is required.&quot;</span><span class="p">)</span>
+            <span class="n">viscosity</span> <span class="o">=</span> <span class="mf">1.458e-6</span> <span class="o">*</span> <span class="nb">pow</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">temperature</span> <span class="o">+</span> <span class="mf">110.4</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mu_ref</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">viscosity</span>
+                <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">density</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_C_inf</span><span class="p">())</span>
+                <span class="o">/</span> <span class="n">get_length_non_dim_unit</span><span class="p">(</span><span class="n">mesh_unit_length</span><span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">speed</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_mach_from_speed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">speed</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">return_json</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+    <span class="c1"># pylint: disable=missing-class-docstring,too-few-public-methods</span>
+    <span class="k">class</span> <span class="nc">Config</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="o">.</span><span class="n">Config</span><span class="p">):</span>
+        <span class="n">exclude_on_flow360_export</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;speed&quot;</span><span class="p">,</span> <span class="s2">&quot;density&quot;</span><span class="p">]</span>
+        <span class="n">require_one_of</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Mach&quot;</span><span class="p">,</span> <span class="s2">&quot;speed&quot;</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="Flow360Params"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.Flow360Params">[docs]</a><span class="k">class</span> <span class="nc">Flow360Params</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Flow360 solver parameters</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">geometry</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Geometry</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+    <span class="n">boundaries</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Boundaries</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+    <span class="n">initial_condition</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;initialCondition&quot;</span><span class="p">)</span>
+    <span class="n">time_stepping</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TimeStepping</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;timeStepping&quot;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">TimeStepping</span><span class="p">())</span>
+    <span class="n">sliding_interfaces</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">SlidingInterface</span><span class="p">]]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;slidingInterfaces&quot;</span><span class="p">)</span>
+    <span class="n">navier_stokes_solver</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">NavierStokesSolver</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;navierStokesSolver&quot;</span><span class="p">)</span>
+    <span class="n">turbulence_model_solver</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TurbulenceModelSolver</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span>
+        <span class="n">alias</span><span class="o">=</span><span class="s2">&quot;turbulenceModelSolver&quot;</span>
+    <span class="p">)</span>
+    <span class="n">transition_model_solver</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;transitionModelSolver&quot;</span><span class="p">)</span>
+    <span class="n">freestream</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Freestream</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+    <span class="n">bet_disks</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;BETDisks&quot;</span><span class="p">)</span>
+    <span class="n">actuator_disks</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">ActuatorDisk</span><span class="p">]]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;actuatorDisks&quot;</span><span class="p">)</span>
+    <span class="n">porous_media</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;porousMedia&quot;</span><span class="p">)</span>
+    <span class="n">user_defined_dynamics</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">]]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;userDefinedDynamics&quot;</span><span class="p">)</span>
+    <span class="n">surface_output</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;surfaceOutput&quot;</span><span class="p">)</span>
+    <span class="n">volume_output</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;volumeOutput&quot;</span><span class="p">)</span>
+    <span class="n">slice_output</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;sliceOutput&quot;</span><span class="p">)</span>
+    <span class="n">iso_surface_output</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;isoSurfaceOutput&quot;</span><span class="p">)</span>
+    <span class="n">monitor_output</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;monitorOutput&quot;</span><span class="p">)</span>
+
+    <span class="c1"># pylint: disable=invalid-name</span>
+    <span class="k">def</span> <span class="nf">_get_non_dimensionalisation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">mesh_unit_length</span><span class="p">,</span> <span class="n">C_inf</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">geometry</span><span class="p">:</span>
+            <span class="n">mesh_unit_length</span> <span class="o">=</span> <span class="n">_get_value_or_none</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">get_mesh_unit_length</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">freestream</span><span class="p">:</span>
+            <span class="n">C_inf</span> <span class="o">=</span> <span class="n">_get_value_or_none</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">freestream</span><span class="o">.</span><span class="n">get_C_inf</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mesh_unit_length</span><span class="p">,</span> <span class="n">C_inf</span>
+
+    <span class="c1"># pylint: disable=arguments-differ</span>
+<div class="viewcode-block" id="Flow360Params.to_flow360_json"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.Flow360Params.to_flow360_json">[docs]</a>    <span class="k">def</span> <span class="nf">to_flow360_json</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns flow360 formatted json</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mesh_unit_length</span><span class="p">,</span> <span class="n">C_inf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_non_dimensionalisation</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sliding_interfaces</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">sliding_interfaces</span><span class="p">:</span>
+                <span class="n">s</span><span class="o">.</span><span class="n">to_flow360_json</span><span class="p">(</span><span class="n">mesh_unit_length</span><span class="o">=</span><span class="n">mesh_unit_length</span><span class="p">,</span> <span class="n">C_inf</span><span class="o">=</span><span class="n">C_inf</span><span class="p">,</span> <span class="n">return_json</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">freestream</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ConfigError</span><span class="p">(</span><span class="s2">&quot;freestream required&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">geometry</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">geometry</span> <span class="o">=</span> <span class="n">Geometry</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">navier_stokes_solver</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">navier_stokes_solver</span> <span class="o">=</span> <span class="n">NavierStokesSolver</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">turbulence_model_solver</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">turbulence_model_solver</span> <span class="o">=</span> <span class="n">TurbulenceModelSolver</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">freestream</span><span class="o">.</span><span class="n">to_flow360_json</span><span class="p">(</span><span class="n">mesh_unit_length</span><span class="o">=</span><span class="n">mesh_unit_length</span><span class="p">,</span> <span class="n">return_json</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">to_flow360_json</span><span class="p">(</span><span class="n">return_json</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">json</span><span class="p">()</span></div>
+
+    <span class="k">def</span> <span class="nf">append</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">Flow360Params</span><span class="p">,</span> <span class="n">overwrite</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="n">Flow360Params</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;params must be type of Flow360Params&quot;</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="n">overwrite</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Flow360Params.default"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.Flow360Params.default">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">default</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">steady</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">solver_version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Flow360Params</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        return default case settings</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="n">Flow360NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Default flow360 params are not yet implemented.&quot;</span><span class="p">)</span></div>
+
+    <span class="c1"># pylint: disable=missing-class-docstring,too-few-public-methods</span>
+    <span class="k">class</span> <span class="nc">Config</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="o">.</span><span class="n">Config</span><span class="p">):</span>
+        <span class="n">allow_but_remove</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;runControl&quot;</span><span class="p">,</span> <span class="s2">&quot;testControl&quot;</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="Flow360MeshParams"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.Flow360MeshParams">[docs]</a><span class="k">class</span> <span class="nc">Flow360MeshParams</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Flow360 mesh parameters</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">boundaries</span><span class="p">:</span> <span class="n">MeshBoundary</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+    <span class="n">sliding_interfaces</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">MeshSlidingInterface</span><span class="p">]]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">(</span><span class="n">alias</span><span class="o">=</span><span class="s2">&quot;slidingInterfaces&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="UnvalidatedFlow360Params"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.flow360_params.UnvalidatedFlow360Params">[docs]</a><span class="k">class</span> <span class="nc">UnvalidatedFlow360Params</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">UserConfig</span><span class="o">.</span><span class="n">do_validation</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ConfigError</span><span class="p">(</span>
+                <span class="s2">&quot;This is DEV feature. To use it activate by: fl.UserConfig.disable_validation().&quot;</span>
+            <span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;This is DEV feature, use it only when you know what you are doing.&quot;</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="c1"># pylint: disable=missing-class-docstring,too-few-public-methods</span>
+    <span class="k">class</span> <span class="nc">Config</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="o">.</span><span class="n">Config</span><span class="p">):</span>
+        <span class="n">extra</span> <span class="o">=</span> <span class="s2">&quot;allow&quot;</span></div>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../../../index.html">flow360 python client</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../flow360.html">flow360 python client package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../flow360doc/cli.html">commandline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../flow360doc/cloud.html">cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../flow360doc/components.html">component</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../../index.html">Module code</a><ul>
+  <li><a href="../../../flow360.html">flow360</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2023, Author.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 4.5.0</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

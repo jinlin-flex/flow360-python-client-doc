@@ -1,0 +1,756 @@
+
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>flow360.component.flow360_params.params_base &#8212; flow360 python client  documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/alabaster.css" />
+    <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+    <script src="../../../../_static/jquery.js"></script>
+    <script src="../../../../_static/underscore.js"></script>
+    <script src="../../../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for flow360.component.flow360_params.params_base</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Flow360 solver parameters</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">wraps</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pydantic</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">rich</span>
+<span class="kn">import</span> <span class="nn">yaml</span>
+<span class="kn">from</span> <span class="nn">pydantic</span> <span class="kn">import</span> <span class="n">BaseModel</span>
+<span class="kn">from</span> <span class="nn">pydantic.fields</span> <span class="kn">import</span> <span class="n">ModelField</span>
+<span class="kn">from</span> <span class="nn">typing_extensions</span> <span class="kn">import</span> <span class="n">Literal</span>
+
+<span class="kn">from</span> <span class="nn">...exceptions</span> <span class="kn">import</span> <span class="n">ConfigError</span><span class="p">,</span> <span class="n">FileError</span><span class="p">,</span> <span class="n">ValidationError</span>
+<span class="kn">from</span> <span class="nn">...log</span> <span class="kn">import</span> <span class="n">log</span>
+<span class="kn">from</span> <span class="nn">..types</span> <span class="kn">import</span> <span class="n">COMMENTS</span><span class="p">,</span> <span class="n">TYPE_TAG_STR</span>
+
+
+<div class="viewcode-block" id="json_dumps"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.json_dumps">[docs]</a><span class="k">def</span> <span class="nf">json_dumps</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;custom json dump with sort_keys=True&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<span class="c1"># pylint: disable=invalid-name</span>
+<div class="viewcode-block" id="params_generic_validator"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.params_generic_validator">[docs]</a><span class="k">def</span> <span class="nf">params_generic_validator</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">ExpectedParamsType</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;generic validator for params comming from webAPI</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    value : dict</span>
+<span class="sd">        value to validate</span>
+<span class="sd">    ExpectedParamsType : SurfaceMeshingParams, Flow360MeshParams</span>
+<span class="sd">        expected type of params</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="n">value</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">params</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">json</span><span class="o">.</span><span class="n">decoder</span><span class="o">.</span><span class="n">JSONDecodeError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">ExpectedParamsType</span><span class="p">(</span><span class="o">**</span><span class="n">params</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">ValidationError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">except</span> <span class="n">pd</span><span class="o">.</span><span class="n">ValidationError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">return</span> <span class="n">params</span></div>
+
+
+<div class="viewcode-block" id="export_to_flow360"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.export_to_flow360">[docs]</a><span class="k">def</span> <span class="nf">export_to_flow360</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;wraps to_flow360_json() function to set correct</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    func : function</span>
+<span class="sd">        to_flow360_json() function which exports JSON format for flow360</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    func</span>
+<span class="sd">        wrapper</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">wrapper_func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">will_export</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">will_export</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">raise</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="k">return</span> <span class="n">wrapper_func</span></div>
+
+
+<span class="k">def</span> <span class="nf">_self_named_property_validator</span><span class="p">(</span><span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">validator</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">msg</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;When model uses custom, user defined property names, for example boundary names.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    values : dict</span>
+<span class="sd">        pydantic root validator values</span>
+<span class="sd">    validator : BaseModel</span>
+<span class="sd">        pydantic BaseModel with field &#39;v&#39; for validating entry of this class properites</span>
+<span class="sd">    msg : str, optional</span>
+<span class="sd">        Additional message to be displayed on error, by default &quot;&quot;</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        values to be passed to next pydantic root validator</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValidationError</span>
+<span class="sd">        When validation fails</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">values</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="c1"># allow for comments</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="n">COMMENTS</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">validator</span><span class="p">(</span><span class="n">v</span><span class="o">=</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">v</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s2"> (type=</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="si">}</span><span class="s2">) </span><span class="si">{</span><span class="n">msg</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="kn">from</span> <span class="nn">exc</span>
+    <span class="k">return</span> <span class="n">values</span>
+
+
+<span class="k">class</span> <span class="nc">DeprecatedAlias</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">deprecated</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<div class="viewcode-block" id="Flow360BaseModel"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel">[docs]</a><span class="k">class</span> <span class="nc">Flow360BaseModel</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Base pydantic model that all Flow360 components inherit from.</span>
+<span class="sd">    Defines configuration for handling data structures</span>
+<span class="sd">    as well as methods for imporing, exporting, and hashing Flow360 objects.</span>
+<span class="sd">    For more details on pydantic base models, see:</span>
+<span class="sd">    `Pydantic Models &lt;https://pydantic-docs.helpmanual.io/usage/models/&gt;`_</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># comments is allowed property at every level</span>
+    <span class="n">comments</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Field</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">filename</span><span class="p">:</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">)</span>
+            <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">obj</span><span class="o">.</span><span class="n">dict</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">will_export</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">__init_subclass__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Things that are done to each of the models.&quot;&quot;&quot;</span>
+
+        <span class="bp">cls</span><span class="o">.</span><span class="n">add_type_field</span><span class="p">()</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">generate_docstring</span><span class="p">()</span>
+
+<div class="viewcode-block" id="Flow360BaseModel.Config"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.Config">[docs]</a>    <span class="k">class</span> <span class="nc">Config</span><span class="p">:</span>  <span class="c1"># pylint: disable=too-few-public-methods</span>
+        <span class="sd">&quot;&quot;&quot;Sets config for all :class:`Flow360BaseModel` objects.</span>
+
+<span class="sd">        Configuration Options</span>
+<span class="sd">        ---------------------</span>
+<span class="sd">        allow_population_by_field_name : bool = True</span>
+<span class="sd">            Allow properties to stand in for fields(?).</span>
+<span class="sd">        arbitrary_types_allowed : bool = True</span>
+<span class="sd">            Allow types like numpy arrays.</span>
+<span class="sd">        extra : str = &#39;forbid&#39;</span>
+<span class="sd">            Forbid extra kwargs not specified in model.</span>
+<span class="sd">        json_encoders : Dict[type, Callable]</span>
+<span class="sd">            Defines how to encode type in json file.</span>
+<span class="sd">        validate_all : bool = True</span>
+<span class="sd">            Validate default values just to be safe.</span>
+<span class="sd">        validate_assignment : bool</span>
+<span class="sd">            Re-validate after re-assignment of field in model.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">arbitrary_types_allowed</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">validate_all</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">extra</span> <span class="o">=</span> <span class="s2">&quot;forbid&quot;</span>
+        <span class="n">validate_assignment</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">allow_population_by_field_name</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">json_encoders</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">tolist</span><span class="p">()),</span>
+        <span class="p">}</span>
+        <span class="n">allow_mutation</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">copy_on_model_validation</span> <span class="o">=</span> <span class="s2">&quot;none&quot;</span>
+        <span class="n">underscore_attrs_are_private</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">exclude_on_flow360_export</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">will_export</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">require_one_of</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">allow_but_remove</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">deprecated_aliases</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">DeprecatedAlias</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span></div>
+
+    <span class="c1"># pylint: disable=no-self-argument</span>
+<div class="viewcode-block" id="Flow360BaseModel.one_of"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.one_of">[docs]</a>    <span class="nd">@pd</span><span class="o">.</span><span class="n">root_validator</span><span class="p">()</span>
+    <span class="k">def</span> <span class="nf">one_of</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;root validator for require one of&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">cls</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">require_one_of</span><span class="p">:</span>
+            <span class="n">set_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">key</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">values</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+            <span class="n">intersection</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">set_values</span><span class="p">)</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">require_one_of</span><span class="p">))</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">intersection</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ConfigError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;One of </span><span class="si">{</span><span class="bp">cls</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">require_one_of</span><span class="si">}</span><span class="s2"> is required.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">values</span></div>
+
+    <span class="c1"># pylint: disable=no-self-argument</span>
+<div class="viewcode-block" id="Flow360BaseModel.allow_but_remove"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.allow_but_remove">[docs]</a>    <span class="nd">@pd</span><span class="o">.</span><span class="n">root_validator</span><span class="p">(</span><span class="n">pre</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">allow_but_remove</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;root validator for allow_but_remove, e.g., legacy properties that are no longer in use&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">cls</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">allow_but_remove</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">allow_but_remove</span><span class="p">:</span>
+                <span class="n">values</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">values</span></div>
+
+    <span class="c1"># pylint: disable=no-self-argument</span>
+<div class="viewcode-block" id="Flow360BaseModel.handle_depracated_aliases"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.handle_depracated_aliases">[docs]</a>    <span class="nd">@pd</span><span class="o">.</span><span class="n">root_validator</span><span class="p">(</span><span class="n">pre</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">handle_depracated_aliases</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        root validator to handle deprecated aliases</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">cls</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">deprecated_aliases</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">deprecated_alias</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">deprecated_aliases</span><span class="p">:</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_handle_depracated_alias</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">deprecated_alias</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">values</span></div>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_get_field_alias</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">field_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">field_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">alias</span> <span class="o">=</span> <span class="p">[</span><span class="n">field</span><span class="o">.</span><span class="n">alias</span> <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">__fields__</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">field_name</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">alias</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_handle_depracated_alias</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">deprecated_alias</span><span class="p">:</span> <span class="n">DeprecatedAlias</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="n">deprecated_value</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">deprecated_alias</span><span class="o">.</span><span class="n">deprecated</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">alias</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_get_field_alias</span><span class="p">(</span><span class="n">field_name</span><span class="o">=</span><span class="n">deprecated_alias</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">actual_value</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">deprecated_alias</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">values</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">alias</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">deprecated_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">actual_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">actual_value</span> <span class="o">!=</span> <span class="n">deprecated_value</span><span class="p">:</span>
+                <span class="n">allowed</span> <span class="o">=</span> <span class="p">[</span><span class="n">deprecated_alias</span><span class="o">.</span><span class="n">deprecated</span><span class="p">,</span> <span class="n">deprecated_alias</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+                <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Only one of </span><span class="si">{</span><span class="n">allowed</span><span class="si">}</span><span class="s2"> can be used.&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">actual_value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s1">&#39;&quot;</span><span class="si">{</span><span class="n">deprecated_alias</span><span class="o">.</span><span class="n">deprecated</span><span class="si">}</span><span class="s1">&quot; is deprecated. Use &quot;</span><span class="si">{</span><span class="n">deprecated_alias</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s1">&quot; instead.&#39;</span>
+                <span class="p">)</span>
+                <span class="n">values</span><span class="p">[</span><span class="n">deprecated_alias</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">deprecated_value</span>
+            <span class="n">values</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">deprecated_alias</span><span class="o">.</span><span class="n">deprecated</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">values</span>
+
+<div class="viewcode-block" id="Flow360BaseModel.copy"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.copy">[docs]</a>    <span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">update</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Flow360BaseModel</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Copy a Flow360BaseModel.  With ``deep=True`` as default.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="s2">&quot;deep&quot;</span> <span class="ow">in</span> <span class="n">kwargs</span> <span class="ow">and</span> <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;deep&quot;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Can&#39;t do shallow copy of component, set `deep=True` in copy().&quot;</span><span class="p">)</span>
+        <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">&quot;deep&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+        <span class="n">new_copy</span> <span class="o">=</span> <span class="n">BaseModel</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">update</span><span class="o">=</span><span class="n">update</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">new_copy</span><span class="o">.</span><span class="n">dict</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="Flow360BaseModel.help"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.help">[docs]</a>    <span class="k">def</span> <span class="nf">help</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">methods</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Prints message describing the fields and methods of a :class:`Flow360BaseModel`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        methods : bool = False</span>
+<span class="sd">            Whether to also print out information about object&#39;s methods.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; solver_params.help(methods=True) # doctest: +SKIP</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rich</span><span class="o">.</span><span class="n">inspect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="n">methods</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Flow360BaseModel.from_file"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.from_file">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">from_file</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">parse_obj_kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Flow360BaseModel</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Loads a :class:`Flow360BaseModel` from .json, or .yaml file.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            Full path to the .yaml or .json file to load the :class:`Flow360BaseModel` from.</span>
+<span class="sd">        **parse_obj_kwargs</span>
+<span class="sd">            Keyword arguments passed to either pydantic&#39;s ``parse_obj`` function when loading model.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        :class:`Flow360BaseModel`</span>
+<span class="sd">            An instance of the component class calling `load`.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; simulation = Simulation.from_file(filename=&#39;folder/sim.json&#39;) # doctest: +SKIP</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">model_dict</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">dict_from_file</span><span class="p">(</span><span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">parse_obj</span><span class="p">(</span><span class="n">model_dict</span><span class="p">,</span> <span class="o">**</span><span class="n">parse_obj_kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Flow360BaseModel.dict_from_file"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.dict_from_file">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">dict_from_file</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Loads a dictionary containing the model from a .json or .yaml file.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            Full path to the .yaml or .json file to load the :class:`Flow360BaseModel` from.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            A dictionary containing the model.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; params = Flow360Params.from_file(filename=&#39;folder/flow360.json&#39;) # doctest: +SKIP</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="s2">&quot;.json&quot;</span> <span class="ow">in</span> <span class="n">filename</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">dict_from_json</span><span class="p">(</span><span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;.yaml&quot;</span> <span class="ow">in</span> <span class="n">filename</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">dict_from_yaml</span><span class="p">(</span><span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">)</span>
+
+        <span class="k">raise</span> <span class="n">FileError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;File must be .json, or .yaml, type, given </span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Flow360BaseModel.to_file"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.to_file">[docs]</a>    <span class="k">def</span> <span class="nf">to_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Exports :class:`Flow360BaseModel` instance to .json or .yaml file</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            Full path to the .json or .yaml or file to save the :class:`Flow360BaseModel` to.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; params.to_file(filename=&#39;folder/flow360.json&#39;) # doctest: +SKIP</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="s2">&quot;.json&quot;</span> <span class="ow">in</span> <span class="n">filename</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_json</span><span class="p">(</span><span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;.yaml&quot;</span> <span class="ow">in</span> <span class="n">filename</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_yaml</span><span class="p">(</span><span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">)</span>
+
+        <span class="k">raise</span> <span class="n">FileError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;File must be .json, or .yaml, type, given </span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Flow360BaseModel.from_json"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.from_json">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">from_json</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">parse_obj_kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Flow360BaseModel</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Load a :class:`Flow360BaseModel` from .json file.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            Full path to the .json file to load the :class:`Flow360BaseModel` from.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        :class:`Flow360BaseModel`</span>
+<span class="sd">            An instance of the component class calling `load`.</span>
+<span class="sd">        **parse_obj_kwargs</span>
+<span class="sd">            Keyword arguments passed to pydantic&#39;s ``parse_obj`` method.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; params = Flow360Params.from_json(filename=&#39;folder/flow360.json&#39;) # doctest: +SKIP</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">model_dict</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">dict_from_json</span><span class="p">(</span><span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">parse_obj</span><span class="p">(</span><span class="n">model_dict</span><span class="p">,</span> <span class="o">**</span><span class="n">parse_obj_kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Flow360BaseModel.dict_from_json"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.dict_from_json">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">dict_from_json</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Load dictionary of the model from a .json file.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            Full path to the .json file to load the :class:`Flow360BaseModel` from.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            A dictionary containing the model.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; params_dict = Flow360Params.dict_from_json(filename=&#39;folder/flow360.json&#39;) # doctest: +SKIP</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">json_fhandle</span><span class="p">:</span>
+            <span class="n">model_dict</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">json_fhandle</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">model_dict</span></div>
+
+<div class="viewcode-block" id="Flow360BaseModel.to_json"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.to_json">[docs]</a>    <span class="k">def</span> <span class="nf">to_json</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Exports :class:`Flow360BaseModel` instance to .json file</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            Full path to the .json file to save the :class:`Flow360BaseModel` to.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; params.to_json(filename=&#39;folder/flow360.json&#39;) # doctest: +SKIP</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">json_string</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">json</span><span class="p">(</span><span class="n">indent</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file_handle</span><span class="p">:</span>
+            <span class="n">file_handle</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">json_string</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Flow360BaseModel.from_yaml"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.from_yaml">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">from_yaml</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">parse_obj_kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Flow360BaseModel</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Loads :class:`Flow360BaseModel` from .yaml file.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            Full path to the .yaml file to load the :class:`Flow360BaseModel` from.</span>
+<span class="sd">        **parse_obj_kwargs</span>
+<span class="sd">            Keyword arguments passed to pydantic&#39;s ``parse_obj`` method.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        :class:`Flow360BaseModel`</span>
+<span class="sd">            An instance of the component class calling `from_yaml`.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; params = Flow360Params.from_yaml(filename=&#39;folder/flow360.yaml&#39;) # doctest: +SKIP</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">model_dict</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">dict_from_yaml</span><span class="p">(</span><span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">parse_obj</span><span class="p">(</span><span class="n">model_dict</span><span class="p">,</span> <span class="o">**</span><span class="n">parse_obj_kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Flow360BaseModel.dict_from_yaml"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.dict_from_yaml">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">dict_from_yaml</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Load dictionary of the model from a .yaml file.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            Full path to the .yaml file to load the :class:`Flow360BaseModel` from.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            A dictionary containing the model.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; params_dict = Flow360Params.dict_from_yaml(filename=&#39;folder/flow360.yaml&#39;) # doctest: +SKIP</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">yaml_in</span><span class="p">:</span>
+            <span class="n">model_dict</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">yaml_in</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">model_dict</span></div>
+
+<div class="viewcode-block" id="Flow360BaseModel.to_yaml"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.to_yaml">[docs]</a>    <span class="k">def</span> <span class="nf">to_yaml</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Exports :class:`Flow360BaseModel` instance to .yaml file.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            Full path to the .yaml file to save the :class:`Flow360BaseModel` to.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; params.to_yaml(filename=&#39;folder/flow360.yaml&#39;) # doctest: +SKIP</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">json_string</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="n">model_dict</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">json_string</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;w+&quot;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file_handle</span><span class="p">:</span>
+            <span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">model_dict</span><span class="p">,</span> <span class="n">file_handle</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_handle_export_exclude</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exclude</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">exclude</span><span class="p">:</span>
+            <span class="n">exclude</span> <span class="o">=</span> <span class="p">{</span><span class="n">TYPE_TAG_STR</span><span class="p">,</span> <span class="o">*</span><span class="n">exclude</span><span class="p">}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">exclude</span> <span class="o">=</span> <span class="p">{</span><span class="n">TYPE_TAG_STR</span><span class="p">}</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">will_export</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">exclude_on_flow360_export</span><span class="p">:</span>
+                <span class="n">exclude</span> <span class="o">=</span> <span class="p">{</span><span class="o">*</span><span class="n">exclude</span><span class="p">,</span> <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">exclude_on_flow360_export</span><span class="p">}</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">will_export</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="n">exclude</span>
+
+<div class="viewcode-block" id="Flow360BaseModel.dict"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.dict">[docs]</a>    <span class="k">def</span> <span class="nf">dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Returns dict representation of the model.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+
+<span class="sd">        *args</span>
+<span class="sd">            Arguments passed to pydantic&#39;s ``dict`` method.</span>
+
+<span class="sd">        **kwargs</span>
+<span class="sd">            Keyword arguments passed to pydantic&#39;s ``dict`` method.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict</span>
+<span class="sd">            A formatted dict.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; params.dict() # doctest: +SKIP</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">exclude</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_export_exclude</span><span class="p">(</span><span class="n">exclude</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">dict</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">exclude</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Flow360BaseModel.json"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.json">[docs]</a>    <span class="k">def</span> <span class="nf">json</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns json representation of the model.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+
+<span class="sd">        *args</span>
+<span class="sd">            Arguments passed to pydantic&#39;s ``json`` method.</span>
+
+<span class="sd">        **kwargs</span>
+<span class="sd">            Keyword arguments passed to pydantic&#39;s ``json`` method.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        json</span>
+<span class="sd">            A formatted json.</span>
+<span class="sd">            Sets default vaules by_alias=True, exclude_none=True</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; params.json() # doctest: +SKIP</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">exclude</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_handle_export_exclude</span><span class="p">(</span><span class="n">exclude</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">json</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">by_alias</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exclude_none</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="n">exclude</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Flow360BaseModel.to_flow360_json"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.to_flow360_json">[docs]</a>    <span class="nd">@export_to_flow360</span>
+    <span class="k">def</span> <span class="nf">to_flow360_json</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">return_json</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generate a JSON representation of the model, as required by Flow360</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        return_json : bool, optional</span>
+<span class="sd">            whether to return value or return None, by default True</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        json</span>
+<span class="sd">            If return_json==True, returns JSON representation of the model.</span>
+
+<span class="sd">        Example</span>
+<span class="sd">        -------</span>
+<span class="sd">        &gt;&gt;&gt; params.to_flow360_json() # doctest: +SKIP</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">return_json</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+    <span class="c1"># pylint: disable=unnecessary-dunder-call</span>
+<div class="viewcode-block" id="Flow360BaseModel.append"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.append">[docs]</a>    <span class="k">def</span> <span class="nf">append</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">Flow360BaseModel</span><span class="p">,</span> <span class="n">overwrite</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;append parametrs to the model</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        params : Flow360BaseModel</span>
+<span class="sd">            Flow360BaseModel parameters to be appended</span>
+<span class="sd">        overwrite : bool, optional</span>
+<span class="sd">            Whether to overwrite if key exists, by default False</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">additional_config</span> <span class="o">=</span> <span class="n">params</span><span class="o">.</span><span class="n">dict</span><span class="p">(</span><span class="n">exclude_unset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exclude_none</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">additional_config</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="fm">__getattribute__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">overwrite</span><span class="p">:</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s1">&#39;&quot;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s1">&quot; already exist in the original model, skipping. Use overwrite=True to overwrite values.&#39;</span>
+                <span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="bp">self</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Flow360BaseModel.add_type_field"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.add_type_field">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">add_type_field</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Automatically place &quot;type&quot; field with model name in the model field dictionary.&quot;&quot;&quot;</span>
+
+        <span class="n">value</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="n">annotation</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="n">value</span><span class="p">]</span>
+
+        <span class="n">tag_field</span> <span class="o">=</span> <span class="n">ModelField</span><span class="o">.</span><span class="n">infer</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">TYPE_TAG_STR</span><span class="p">,</span>
+            <span class="n">value</span><span class="o">=</span><span class="n">value</span><span class="p">,</span>
+            <span class="n">annotation</span><span class="o">=</span><span class="n">annotation</span><span class="p">,</span>
+            <span class="n">class_validators</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="bp">cls</span><span class="o">.</span><span class="n">__config__</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">__fields__</span><span class="p">[</span><span class="n">TYPE_TAG_STR</span><span class="p">]</span> <span class="o">=</span> <span class="n">tag_field</span></div>
+
+<div class="viewcode-block" id="Flow360BaseModel.generate_docstring"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360BaseModel.generate_docstring">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">generate_docstring</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Generates a docstring for a Flow360 model and saves it to the __doc__ of the class.&quot;&quot;&quot;</span>
+
+        <span class="c1"># store the docstring in here</span>
+        <span class="n">doc</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+
+        <span class="c1"># if the model already has a docstring, get the first lines and save the rest</span>
+        <span class="n">original_docstrings</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__doc__</span><span class="p">:</span>
+            <span class="n">original_docstrings</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="vm">__doc__</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">class_description</span> <span class="o">=</span> <span class="n">original_docstrings</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">doc</span> <span class="o">+=</span> <span class="n">class_description</span>
+        <span class="n">original_docstrings</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">original_docstrings</span><span class="p">)</span>
+
+        <span class="c1"># create the list of parameters (arguments) for the model</span>
+        <span class="n">doc</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">    Parameters</span><span class="se">\n</span><span class="s2">    ----------</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="k">for</span> <span class="n">field_name</span><span class="p">,</span> <span class="n">field</span> <span class="ow">in</span> <span class="bp">cls</span><span class="o">.</span><span class="n">__fields__</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="c1"># ignore the type tag</span>
+            <span class="k">if</span> <span class="n">field_name</span> <span class="o">==</span> <span class="n">TYPE_TAG_STR</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="c1"># get data type</span>
+            <span class="n">data_type</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">_type_display</span><span class="p">()</span>  <span class="c1"># pylint:disable=protected-access</span>
+
+            <span class="c1"># get default values</span>
+            <span class="n">default_val</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">get_default</span><span class="p">()</span>
+            <span class="k">if</span> <span class="s2">&quot;=&quot;</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">default_val</span><span class="p">):</span>
+                <span class="c1"># handle cases where default values are pydantic models</span>
+                <span class="n">default_val</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">default_val</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="n">default_val</span><span class="si">}</span><span class="s2">)&quot;</span>
+                <span class="n">default_val</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;, &quot;</span><span class="p">)</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">default_val</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">))</span>
+
+            <span class="c1"># make first line: name : type = default</span>
+            <span class="n">default_str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span> <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">required</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">&quot; = </span><span class="si">{</span><span class="n">default_val</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">doc</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;    </span><span class="si">{</span><span class="n">field_name</span><span class="si">}</span><span class="s2"> : </span><span class="si">{</span><span class="n">data_type</span><span class="si">}{</span><span class="n">default_str</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+
+            <span class="c1"># get field metadata</span>
+            <span class="n">field_info</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">field_info</span>
+            <span class="n">doc</span> <span class="o">+=</span> <span class="s2">&quot;        &quot;</span>
+
+            <span class="c1"># add units (if present)</span>
+            <span class="n">units</span> <span class="o">=</span> <span class="n">field_info</span><span class="o">.</span><span class="n">extra</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;units&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">units</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">units</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">)):</span>
+                    <span class="n">unitstr</span> <span class="o">=</span> <span class="s2">&quot;(&quot;</span>
+                    <span class="k">for</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">units</span><span class="p">:</span>
+                        <span class="n">unitstr</span> <span class="o">+=</span> <span class="nb">str</span><span class="p">(</span><span class="n">unit</span><span class="p">)</span>
+                        <span class="n">unitstr</span> <span class="o">+=</span> <span class="s2">&quot;, &quot;</span>
+                    <span class="n">unitstr</span> <span class="o">=</span> <span class="n">unitstr</span><span class="p">[:</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+                    <span class="n">unitstr</span> <span class="o">+=</span> <span class="s2">&quot;)&quot;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">unitstr</span> <span class="o">=</span> <span class="n">units</span>
+                <span class="n">doc</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;[units = </span><span class="si">{</span><span class="n">unitstr</span><span class="si">}</span><span class="s2">].  &quot;</span>
+
+            <span class="c1"># add description</span>
+            <span class="n">description_str</span> <span class="o">=</span> <span class="n">field_info</span><span class="o">.</span><span class="n">description</span>
+            <span class="k">if</span> <span class="n">description_str</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">doc</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">description_str</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+
+        <span class="c1"># add in remaining things in the docs</span>
+        <span class="k">if</span> <span class="n">original_docstrings</span><span class="p">:</span>
+            <span class="n">doc</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="n">doc</span> <span class="o">+=</span> <span class="n">original_docstrings</span>
+
+        <span class="n">doc</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="n">doc</span></div></div>
+
+
+<div class="viewcode-block" id="Flow360SortableBaseModel"><a class="viewcode-back" href="../../../../flow360doc/component/flow360_params.html#flow360.component.flow360_params.params_base.Flow360SortableBaseModel">[docs]</a><span class="k">class</span> <span class="nc">Flow360SortableBaseModel</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;:class:`Flow360SortableBaseModel` class for setting up parameters by names, eg. boundary names&quot;&quot;&quot;</span>
+
+    <span class="c1"># pylint: disable=missing-class-docstring,too-few-public-methods</span>
+    <span class="k">class</span> <span class="nc">Config</span><span class="p">(</span><span class="n">Flow360BaseModel</span><span class="o">.</span><span class="n">Config</span><span class="p">):</span>
+        <span class="n">extra</span> <span class="o">=</span> <span class="s2">&quot;allow&quot;</span>
+        <span class="n">json_dumps</span> <span class="o">=</span> <span class="n">json_dumps</span></div>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../../../index.html">flow360 python client</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../flow360.html">flow360 python client package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../flow360doc/cli.html">commandline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../flow360doc/cloud.html">cloud</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../flow360doc/components.html">component</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../../index.html">Module code</a><ul>
+  <li><a href="../../../flow360.html">flow360</a><ul>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2023, Author.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 4.5.0</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
